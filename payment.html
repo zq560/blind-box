@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>支付 - 强哥的地盘</title>
+  <link rel="stylesheet" href="styles.css">
+  </head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <h1 id="siteLogo" class="logo">强哥的地盘</h1>
+      <nav><button id="langToggle" class="btn small" type="button" aria-label="切换语言">English</button></nav>
+    </div>
+  </header>
+  <main class="container">
+    <h2 id="payTitle">扫码支付</h2>
+    <p id="payDesc">请使用支付宝扫码完成付款，完成后等待后台确认。</p>
+    <div class="card qr-section">
+      <p><span id="amountLabel">支付金额：</span><strong>¥<span id="amount">0.00</span></strong></p>
+      <img id="qrImg" src="微信图片_20260529162929_94_2.jpg" class="qr-image" alt="支付宝扫码支付">
+      <p id="orderInfo">订单号：<strong>正在生成...</strong></p>
+      <p id="waitDesc">付款后请留在此页面，后台同意或拒绝后会自动弹出结果。</p>
+    </div>
+  </main>
+  <footer class="site-footer"><div id="footerText" class="container">© 2026 强哥的地盘</div></footer>
+  <script>
+    // 从查询字符串读取金额与订单号，并等待后台审核结果
+    function qs(key){const u=new URLSearchParams(location.search);return u.get(key)}
+    const amount = qs('amount')||qs('amt')||'0.00';
+    const orderId = qs('orderId')||qs('id')||'';
+    const authToken = () => localStorage.getItem('authToken');
+    let resultShown = false;
+    let lang = localStorage.getItem('lang') || 'zh';
+    const translations = {
+      zh: {
+        title: '支付 - 强哥的地盘',
+        logo: '强哥的地盘',
+        langToggle: 'English',
+        payTitle: '扫码支付',
+        payDesc: '请使用支付宝扫码完成付款，完成后等待后台确认。',
+        amountLabel: '支付金额：',
+        orderLabel: '订单号：',
+        creatingOrder: '正在生成...',
+        waitDesc: '付款后请留在此页面，后台同意或拒绝后会自动弹出结果。',
+        waitingNote: '订单等待后台确认中，请不要关闭页面。',
+        failTitle: '支付失败',
+        failMessage: '支付失败，请联系老板强哥15551253727',
+        ok: '知道了',
+        drawTitle: '正在开奖',
+        drawDesc: '后台已确认订单，系统正在同步奖品。',
+        drawing: '奖品滚动中...',
+        drawingRound: (round, total) => `第 ${round}/${total} 次开奖中...`,
+        roundResult: (round, total, prize) => `第 ${round}/${total} 次：${prize}`,
+        done: result => '开奖完成：' + result,
+        openError: '打开盲盒失败',
+        prizes: {
+          iphone: '苹果手机',
+          cash99: '99元红包',
+          thanks: '谢谢参与'
+        },
+        footerText: '© 2026 强哥的地盘'
+      },
+      en: {
+        title: 'Payment - Qiangge\'s Spot',
+        logo: 'Qiangge\'s Spot',
+        langToggle: '中文',
+        payTitle: 'Scan to Pay',
+        payDesc: 'Scan with Alipay, then wait for admin confirmation.',
+        amountLabel: 'Amount: ',
+        orderLabel: 'Order ID: ',
+        creatingOrder: 'Generating...',
+        waitDesc: 'Stay on this page after paying. The result appears after admin approval or rejection.',
+        waitingNote: 'Waiting for admin confirmation. Please keep this page open.',
+        failTitle: 'Payment Failed',
+        failMessage: 'Payment failed. Please contact Qiangge at 15551253727.',
+        ok: 'OK',
+        drawTitle: 'Opening',
+        drawDesc: 'Admin approved the order. The system is syncing your prizes.',
+        drawing: 'Rolling prizes...',
+        drawingRound: (round, total) => `Opening ${round}/${total}...`,
+        roundResult: (round, total, prize) => `Round ${round}/${total}: ${prize}`,
+        done: result => 'Result: ' + result,
+        openError: 'Failed to open the box',
+        prizes: {
+          iphone: 'iPhone',
+          cash99: '¥99 Red Packet',
+          thanks: 'Thanks for Participating'
+        },
+        footerText: '© 2026 Qiangge\'s Spot'
+      }
+    };
+
+    function text(){
+      return translations[lang] || translations.zh;
+    }
+
+    function prizeName(prize){
+      const id = prize?.id || (prize?.name === '苹果手机' ? 'iphone' : prize?.name === '99元红包' ? 'cash99' : prize?.name === '谢谢参与' ? 'thanks' : '');
+      return text().prizes[id] || prize?.name || prize || '';
+    }
+
+    function getPrizePool(){
+      return [
+        {id:'iphone', name:text().prizes.iphone, image:'苹果手机.png'},
+        {id:'cash99', name:text().prizes.cash99, image:'美金.webp'},
+        {id:'thanks', name:text().prizes.thanks, image:'微信图片_20260529185123_95_2.jpg'}
+      ];
+    }
+
+    function applyLanguage(nextLang){
+      lang = nextLang;
+      localStorage.setItem('lang', lang);
+      const t = text();
+      document.documentElement.lang = lang === 'en' ? 'en' : 'zh-CN';
+      document.title = t.title;
+      document.getElementById('siteLogo').textContent = t.logo;
+      document.getElementById('langToggle').textContent = t.langToggle;
+      document.getElementById('payTitle').textContent = t.payTitle;
+      document.getElementById('payDesc').textContent = t.payDesc;
+      document.getElementById('amountLabel').textContent = t.amountLabel;
+      document.getElementById('waitDesc').textContent = t.waitDesc;
+      document.getElementById('footerText').textContent = t.footerText;
+      if(orderId) document.getElementById('orderInfo').innerHTML = t.orderLabel + '<strong>'+escapeHtml(orderId)+'</strong>';
+      else document.getElementById('orderInfo').innerHTML = t.orderLabel + '<strong>' + t.creatingOrder + '</strong>';
+      const expireNote = document.getElementById('expireNote');
+      if(expireNote) expireNote.textContent = t.waitingNote;
+    }
+
+    document.getElementById('amount').textContent = Number(amount).toFixed(2);
+    document.getElementById('langToggle').addEventListener('click', () => {
+      applyLanguage((localStorage.getItem('lang') || 'zh') === 'zh' ? 'en' : 'zh');
+    });
+    applyLanguage(lang);
+
+    function showOrderResult(order){
+      if(resultShown) return;
+      resultShown = true;
+      sessionStorage.setItem('order-result-' + order.id, order.status);
+
+      const overlay = document.createElement('div');
+      overlay.className = 'customer-modal';
+      if(order.status === 'accepted'){
+        showCaseOpening(overlay, order);
+      }else{
+        fetch('/api/orders/' + encodeURIComponent(order.id) + '/seen', {method: 'POST'}).catch(() => {});
+        overlay.innerHTML = `
+          <div class="customer-modal-box" role="dialog" aria-modal="true" aria-label="支付失败">
+            <h3>${escapeHtml(text().failTitle)}</h3>
+            <p>${escapeHtml(text().failMessage)}</p>
+            <button id="closeResultBtn" class="btn" type="button">${escapeHtml(text().ok)}</button>
+          </div>
+        `;
+        document.body.appendChild(overlay);
+        document.getElementById('closeResultBtn').addEventListener('click', () => overlay.remove());
+      }
+    }
+
+    function escapeHtml(value){
+      return String(value ?? '').replace(/[&<>"']/g, char => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[char]));
+    }
+
+    function normalizePrize(prize){
+      if(prize && typeof prize === 'object') return {...prize, name: prizeName(prize)};
+      const found = getPrizePool().find(item => item.name === prize);
+      return found || {id:'unknown', name:String(prize || '未知奖品'), image:''};
+    }
+
+    async function ensurePrizeResult(order){
+      const data = await openBlindBox(order.id);
+      return {
+        results: Array.isArray(data.blindBoxResult) ? data.blindBoxResult.map(normalizePrize) : [],
+        fulfillmentStatus: data.fulfillmentStatus || 'pendingShipment'
+      };
+    }
+
+    async function showCaseOpening(overlay, order){
+      document.body.appendChild(overlay);
+      overlay.innerHTML = `
+        <div class="customer-modal-box case-modal-box" role="dialog" aria-modal="true" aria-label="正在开奖">
+          <h3>${escapeHtml(text().drawTitle)}</h3>
+          <p>${escapeHtml(text().drawDesc)}</p>
+          <div class="case-window">
+            <div class="case-pointer" aria-hidden="true"></div>
+            <div id="caseStrip" class="case-strip"></div>
+          </div>
+          <p id="caseResult" class="case-result">${escapeHtml(text().drawing)}</p>
+        </div>
+      `;
+
+      const draw = await ensurePrizeResult(order);
+      const prizePool = getPrizePool();
+      const results = draw.results.length ? draw.results : [prizePool[2]];
+      const strip = document.getElementById('caseStrip');
+      const caseResult = document.getElementById('caseResult');
+
+      async function spinPrize(prize, round, total){
+        return new Promise(resolve => {
+          const targetIndex = 26;
+          const items = Array.from({length: 34}, (_, index) => index === targetIndex ? prize : prizePool[(index + round) % prizePool.length]);
+          strip.classList.remove('spinning');
+          strip.style.transform = 'translateX(0)';
+          strip.innerHTML = items.map(item => `
+            <div class="case-tile">
+              ${item.image ? `<img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.name)}">` : ''}
+              <span>${escapeHtml(item.name)}</span>
+            </div>
+          `).join('');
+          caseResult.textContent = text().drawingRound(round, total);
+
+          requestAnimationFrame(() => {
+            const tile = strip.querySelector('.case-tile');
+            const windowEl = strip.closest('.case-window');
+            const tileWidth = tile ? tile.getBoundingClientRect().width : 132;
+            const gap = 12;
+            const windowWidth = windowEl ? windowEl.getBoundingClientRect().width : 640;
+            const distance = -(targetIndex * (tileWidth + gap) - (windowWidth / 2 - tileWidth / 2));
+            strip.style.setProperty('--spin-distance', distance + 'px');
+            void strip.offsetWidth;
+            strip.classList.add('spinning');
+          });
+
+          strip.addEventListener('animationend', () => {
+            caseResult.textContent = text().roundResult(round, total, prize.name);
+            setTimeout(resolve, 650);
+          }, {once:true});
+        });
+      }
+
+      for(let i = 0; i < results.length; i += 1){
+        await spinPrize(results[i], i + 1, results.length);
+      }
+
+      const resultText = results.map(prize => prize.name).join('、');
+      caseResult.textContent = text().done(resultText);
+      await fetch('/api/orders/' + encodeURIComponent(order.id) + '/seen', {method: 'POST'}).catch(() => {});
+      setTimeout(() => {
+        const tab = draw.fulfillmentStatus === 'received' ? 'received' : 'pendingShipment';
+        location.href = '/me.html?orders=1&tab=' + tab;
+      }, 2200);
+    }
+
+    async function openBlindBox(id){
+      const res = await fetch('/api/orders/' + encodeURIComponent(id) + '/open-box', {
+        method: 'POST',
+        headers: authToken() ? {'Authorization': 'Bearer ' + authToken()} : {}
+      });
+      const data = await res.json().catch(() => ({}));
+      if(!res.ok) throw new Error(data.msg || text().openError);
+      return data;
+    }
+
+    async function fetchCurrentOrder(){
+      if(!orderId || resultShown) return;
+      const headers = authToken() ? {'Authorization': 'Bearer ' + authToken()} : {};
+      const statusRes = await fetch('/api/orders/' + encodeURIComponent(orderId) + '/status', {headers});
+      if(statusRes.ok) return statusRes.json();
+
+      if(!authToken()) return null;
+      const myOrdersRes = await fetch('/api/myorders', {headers});
+      if(!myOrdersRes.ok) return null;
+      const myOrders = await myOrdersRes.json();
+      return Array.isArray(myOrders)
+        ? myOrders.find(order => String(order.id) === String(orderId))
+        : null;
+    }
+
+    async function pollOrderStatus(){
+      if(!orderId || resultShown) return;
+      try{
+        const order = await fetchCurrentOrder();
+        if(!order) return;
+        if(order.status === 'accepted' || order.status === 'rejected'){
+          showOrderResult(order);
+        }
+      }catch(err){}
+    }
+
+    // 显示等待状态，不自动离开页面，避免错过后台处理结果
+    (function(){
+      const note = document.createElement('p');
+      note.id = 'expireNote';
+      note.textContent = text().waitingNote;
+      const qrSection = document.querySelector('.qr-section');
+      if(qrSection) qrSection.appendChild(note);
+
+      pollOrderStatus();
+      setInterval(pollOrderStatus, 3000);
+    })();
+  </script>
+</body>
+</html>

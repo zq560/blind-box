@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>强哥的地盘</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <h1 id="siteLogo" class="logo">强哥的地盘</h1>
+      <nav>
+        <a id="meLink" href="me.html" class="btn small">我</a>
+        <button id="langToggle" class="btn small" aria-label="切换语言">English</button>
+        <button id="themeToggle" class="btn small" aria-label="切换主题">切换主题</button>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero container">
+      <p id="heroDesc">要么发财，要么发难</p>
+    </section>
+
+    <section class="product container">
+      <div class="product-grid">
+        <div class="card product-card">
+          <img src="product.png" alt="神秘盲盒 / Mystery Blind Box" class="product-image">
+          <h3 id="productName">神秘盲盒 <span class="product-name-en">Mystery Blind Box</span></h3>
+          <p id="productDesc">中奖概率倍高</p>
+          <p><strong id="priceLabel">价格：</strong><span id="productPrice">¥5.00</span> / <span id="unitLabel">个</span></p>
+        </div>
+
+        <div class="card order-card">
+          <h3 id="orderTitle">购买</h3>
+          <div id="loginWarning" class="login-warning hidden">请先登录或注册后再购买。 <a href="me.html">去登录</a></div>
+          <div class="order-actions">
+            <label id="quantityLabel">数量
+              <input type="number" id="quantity" name="quantity" value="1" min="1">
+            </label>
+            <button id="buyBtn" class="btn">购买</button>
+          </div>
+          <div id="orderResult" class="result" aria-live="polite"></div>
+        </div>
+      </div>
+
+      <div class="card product-description">
+        <h3 id="productIntroTitle">商品介绍</h3>
+        <p id="productIntro1">神秘盲盒内含未知惊喜，适合作为收藏、送礼或自己开箱。每个盲盒均为随机规格，充满期待与惊喜。</p>
+        <p id="productIntro2">购买后请完成收货信息填写并进入支付宝支付页面，我们会在付款确认后尽快安排发货。</p>
+      </div>
+
+      <section class="prize-section" aria-labelledby="prizeTitle">
+        <h3 id="prizeTitle">奖品概率说明</h3>
+        <div class="prize-grid">
+          <article class="prize-card">
+            <img src="苹果手机.png" alt="苹果手机">
+            <div>
+              <h4 id="prizePhoneTitle">苹果手机</h4>
+              <p id="prizePhoneDesc">中奖概率 1%，后台确认后系统自动抽取。</p>
+            </div>
+          </article>
+          <article class="prize-card">
+            <img src="美金.webp" alt="99元红包">
+            <div>
+              <h4 id="prizeCashTitle">99元红包</h4>
+              <p id="prizeCashDesc">中奖概率 10%，开到后可联系老板兑奖。</p>
+            </div>
+          </article>
+          <article class="prize-card">
+            <img src="微信图片_20260529185123_95_2.jpg" alt="谢谢参与">
+            <div>
+              <h4 id="prizeThanksTitle">谢谢参与</h4>
+              <p id="prizeThanksDesc">概率 89%，重在参与，祝你下次好运。</p>
+            </div>
+          </article>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container" id="footerText">© 2026 强哥的地盘</div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
+

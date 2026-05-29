@@ -1,0 +1,549 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>我的账号 - 强哥的地盘</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <h1 id="siteLogo" class="logo">强哥的地盘</h1>
+      <nav>
+        <a id="homeLink" class="btn small" href="/">商品页</a>
+        <button id="langToggle" class="btn small" type="button" aria-label="切换语言">English</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container account-page">
+    <h2 id="accountTitle">我的账户</h2>
+
+    <section id="authArea" class="account-auth">
+      <div class="card account-card">
+        <h3 id="loginTitle">登录</h3>
+        <p id="loginHint" class="muted-text">登录后可以查看全部订单和盲盒结果。</p>
+        <form id="loginForm">
+          <label id="loginPhoneLabel">手机号<input id="loginPhone" name="phone" required></label>
+          <label id="loginPasswordLabel">密码<input name="password" type="password" required></label>
+          <button id="loginBtn" class="btn" type="submit">登录</button>
+        </form>
+        <div id="loginResult" class="result" aria-live="polite"></div>
+        <div class="auth-switch">
+          <span id="noAccountText">没有注册？</span>
+          <a id="registerLink" class="btn small" href="register.html">注册</a>
+        </div>
+      </div>
+    </section>
+
+    <section id="meArea" class="hidden">
+      <div class="card account-summary">
+        <div>
+          <h3><span id="welcomeText">欢迎，</span><span id="meName"></span></h3>
+          <p id="ordersHint" class="muted-text">点击“全部订单”查看购买内容和盲盒结果。</p>
+        </div>
+        <button id="logoutBtn" class="btn small" type="button">登出</button>
+      </div>
+
+      <div class="card orders-entry">
+        <button id="allOrdersBtn" class="btn" type="button">全部订单</button>
+        <span id="ordersCount" class="muted-text">正在读取订单...</span>
+      </div>
+
+      <div id="ordersPanel" class="hidden">
+        <h3 id="ordersPanelTitle">全部订单</h3>
+        <div class="order-tabs" aria-label="订单状态筛选">
+          <button class="tab-btn active" type="button" data-order-tab="pendingShipment">待发货</button>
+          <button class="tab-btn" type="button" data-order-tab="shipped">待收货</button>
+          <button class="tab-btn" type="button" data-order-tab="received">已收货</button>
+        </div>
+        <div id="myOrders" class="orders-list" aria-live="polite"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer"><div id="footerText" class="container">© 2026 强哥的地盘</div></footer>
+
+  <script>
+    const loginForm = document.getElementById('loginForm');
+    const loginResult = document.getElementById('loginResult');
+    const loginHint = document.getElementById('loginHint');
+    const loginPhone = document.getElementById('loginPhone');
+    const authArea = document.getElementById('authArea');
+    const meArea = document.getElementById('meArea');
+    const meName = document.getElementById('meName');
+    const myOrders = document.getElementById('myOrders');
+    const allOrdersBtn = document.getElementById('allOrdersBtn');
+    const ordersPanel = document.getElementById('ordersPanel');
+    const ordersCount = document.getElementById('ordersCount');
+    const orderTabBtns = document.querySelectorAll('.tab-btn[data-order-tab]');
+    const siteLogo = document.getElementById('siteLogo');
+    const homeLink = document.getElementById('homeLink');
+    const langToggle = document.getElementById('langToggle');
+    const accountTitle = document.getElementById('accountTitle');
+    const loginTitle = document.getElementById('loginTitle');
+    const loginPhoneLabel = document.getElementById('loginPhoneLabel');
+    const loginPasswordLabel = document.getElementById('loginPasswordLabel');
+    const loginBtn = document.getElementById('loginBtn');
+    const noAccountText = document.getElementById('noAccountText');
+    const registerLink = document.getElementById('registerLink');
+    const welcomeText = document.getElementById('welcomeText');
+    const ordersHint = document.getElementById('ordersHint');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const ordersPanelTitle = document.getElementById('ordersPanelTitle');
+    const footerText = document.getElementById('footerText');
+
+    let latestOrders = [];
+    let ordersVisible = false;
+    let activeOrderTab = 'pendingShipment';
+    let lang = localStorage.getItem('lang') || 'zh';
+    const notifiedOrderIds = new Set();
+    const prizePool = [
+      {id:'iphone', name:'苹果手机', image:'苹果手机.png'},
+      {id:'cash99', name:'99元红包', image:'美金.webp'},
+      {id:'thanks', name:'谢谢参与', image:'微信图片_20260529185123_95_2.jpg'}
+    ];
+
+    const translations = {
+      zh: {
+        title: '我的账号 - 强哥的地盘',
+        logo: '强哥的地盘',
+        homeLink: '商品页',
+        langToggle: 'English',
+        accountTitle: '我的账户',
+        loginTitle: '登录',
+        loginHint: '登录后可以查看全部订单和盲盒结果。',
+        registeredHint: '注册成功，请登录。',
+        phoneLabel: '手机号',
+        passwordLabel: '密码',
+        loginBtn: '登录',
+        noAccount: '没有注册？',
+        register: '注册',
+        welcome: '欢迎，',
+        ordersHint: '点击“全部订单”查看购买内容和盲盒结果。',
+        logout: '登出',
+        allOrders: '全部订单',
+        loadingOrders: '正在读取订单...',
+        ordersPanelTitle: '全部订单',
+        footerText: '© 2026 强哥的地盘',
+        tabs: {pendingShipment:'待发货', shipped:'待收货', received:'已收货'},
+        statuses: {pending:'待处理', accepted:'已同意', rejected:'已拒绝', awaitingDraw:'待开奖', pendingShipment:'待发货', shipped:'待收货', received:'已收货', cancelled:'已取消'},
+        prizes: {iphone:'苹果手机', cash99:'99元红包', thanks:'谢谢参与'},
+        orderCount: count => `共 ${count} 个订单`,
+        noOrders: '暂无订单',
+        noCategoryOrders: '这个分类暂无订单',
+        cannotLoad: '无法加载订单',
+        itemLabel: '买的东西',
+        amountLabel: '订单金额',
+        createdLabel: '下单时间',
+        addressLabel: '收货地址',
+        prizeLabel: '盲盒结果',
+        orderLabel: id => `订单 ${id}`,
+        unopenAccepted: '未打开',
+        unopenRejected: '未开启（支付失败）',
+        waitOpen: '等待后台同意后打开',
+        confirmReceive: '确认收货',
+        receiveError: '确认收货失败',
+        openError: '打开盲盒失败',
+        accountMissing: '账号不存在，请先注册。',
+        loginFailed: '登录失败',
+        drawTitle: '正在开奖',
+        drawDesc: id => `订单 ${id} 已通过，系统正在同步奖品。`,
+        drawRolling: '奖品滚动中...',
+        drawResult: result => '你开到了：' + result,
+        payFailTitle: '支付失败',
+        payFailText: '支付失败，请联系老板强哥15551253727',
+        ok: '知道了',
+        loading: '正在加载订单...',
+        prizeJoin: '、'
+      },
+      en: {
+        title: 'My Account - Qiangge\'s Spot',
+        logo: 'Qiangge\'s Spot',
+        homeLink: 'Product',
+        langToggle: '中文',
+        accountTitle: 'My Account',
+        loginTitle: 'Log In',
+        loginHint: 'Log in to view all orders and mystery box results.',
+        registeredHint: 'Registration complete. Please log in.',
+        phoneLabel: 'Phone',
+        passwordLabel: 'Password',
+        loginBtn: 'Log In',
+        noAccount: 'No account?',
+        register: 'Register',
+        welcome: 'Welcome, ',
+        ordersHint: 'Open “All Orders” to view purchases and prize results.',
+        logout: 'Log Out',
+        allOrders: 'All Orders',
+        loadingOrders: 'Reading orders...',
+        ordersPanelTitle: 'All Orders',
+        footerText: '© 2026 Qiangge\'s Spot',
+        tabs: {pendingShipment:'To Ship', shipped:'To Receive', received:'Received'},
+        statuses: {pending:'Pending', accepted:'Approved', rejected:'Rejected', awaitingDraw:'Awaiting Draw', pendingShipment:'To Ship', shipped:'To Receive', received:'Received', cancelled:'Cancelled'},
+        prizes: {iphone:'iPhone', cash99:'¥99 Red Packet', thanks:'Thanks for Participating'},
+        orderCount: count => `${count} order${count === 1 ? '' : 's'}`,
+        noOrders: 'No orders yet',
+        noCategoryOrders: 'No orders in this category',
+        cannotLoad: 'Unable to load orders',
+        itemLabel: 'Item',
+        amountLabel: 'Amount',
+        createdLabel: 'Ordered At',
+        addressLabel: 'Shipping Address',
+        prizeLabel: 'Prize Result',
+        orderLabel: id => `Order ${id}`,
+        unopenAccepted: 'Not opened',
+        unopenRejected: 'Not opened (payment failed)',
+        waitOpen: 'Wait for admin approval to open',
+        confirmReceive: 'Confirm Receipt',
+        receiveError: 'Failed to confirm receipt',
+        openError: 'Failed to open box',
+        accountMissing: 'Account not found. Please register first.',
+        loginFailed: 'Login failed',
+        drawTitle: 'Opening',
+        drawDesc: id => `Order ${id} was approved. The system is syncing prizes.`,
+        drawRolling: 'Rolling prizes...',
+        drawResult: result => 'You got: ' + result,
+        payFailTitle: 'Payment Failed',
+        payFailText: 'Payment failed. Please contact Qiangge at 15551253727.',
+        ok: 'OK',
+        loading: 'Loading orders...',
+        prizeJoin: ', '
+      }
+    };
+
+    function tr(){
+      return translations[lang] || translations.zh;
+    }
+
+    function saveAuth(token, name){
+      localStorage.setItem('authToken', token);
+      localStorage.setItem('authName', name);
+    }
+
+    function clearAuth(){
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('authName');
+    }
+
+    function authHeaders(){
+      const token = localStorage.getItem('authToken');
+      return token ? {'Authorization':'Bearer ' + token} : {};
+    }
+
+    function escapeHtml(value){
+      return String(value ?? '').replace(/[&<>"']/g, char => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[char]));
+    }
+
+    function formatDate(value){
+      if(!value) return '-';
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? escapeHtml(value) : date.toLocaleString('zh-CN', {hour12:false});
+    }
+
+    function formatMoney(value){
+      const num = Number(value ?? 0);
+      return Number.isFinite(num) ? num.toFixed(2) : '0.00';
+    }
+
+    function statusText(status){
+      return tr().statuses[status] || status || tr().statuses.pending;
+    }
+
+    function prizeName(prize){
+      const id = prize?.id || (prize?.name === '苹果手机' ? 'iphone' : prize?.name === '99元红包' ? 'cash99' : prize?.name === '谢谢参与' ? 'thanks' : '');
+      return tr().prizes[id] || prize?.name || prize || '';
+    }
+
+    function normalizePrize(prize){
+      if(prize && typeof prize === 'object') return {...prize, name: prizeName(prize)};
+      const found = prizePool.find(item => item.name === prize);
+      return found ? {...found, name: prizeName(found)} : {id:'unknown', name:String(prize || ''), image:''};
+    }
+
+    function prizeResult(order){
+      return Array.isArray(order.blindBoxResult) ? order.blindBoxResult.map(normalizePrize) : [];
+    }
+
+    function orderStage(order){
+      if(order.status === 'accepted') return order.fulfillmentStatus || 'pendingShipment';
+      if(order.status === 'rejected') return 'cancelled';
+      return order.status || 'pending';
+    }
+
+    function blindBoxText(order){
+      const result = prizeResult(order);
+      if(result.length){
+        return result.map(prize => prize.name).join(tr().prizeJoin);
+      }
+      if(order.status === 'accepted') return tr().unopenAccepted;
+      if(order.status === 'rejected') return tr().unopenRejected;
+      return tr().waitOpen;
+    }
+
+    function renderOrders(){
+      ordersCount.textContent = tr().orderCount(latestOrders.length);
+      if(!ordersVisible) return;
+
+      if(!latestOrders.length){
+        myOrders.innerHTML = `<div class="empty-state">${escapeHtml(tr().noOrders)}</div>`;
+        return;
+      }
+
+      const orders = [...latestOrders].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+      const filtered = orders.filter(order => orderStage(order) === activeOrderTab);
+      if(!filtered.length){
+        myOrders.innerHTML = `<div class="empty-state">${escapeHtml(tr().noCategoryOrders)}</div>`;
+        return;
+      }
+
+      myOrders.innerHTML = filtered.map(order => {
+        const stage = orderStage(order);
+        const prizes = prizeResult(order);
+        const canReceive = stage === 'shipped';
+        return `
+          <article class="order-item">
+            <div class="order-item-top">
+              <strong>${escapeHtml(tr().orderLabel(order.id || '-'))}</strong>
+              <span class="status-badge">${escapeHtml(statusText(stage))}</span>
+            </div>
+            <dl class="order-detail-grid">
+              <div><dt>${escapeHtml(tr().itemLabel)}</dt><dd>${escapeHtml(order.product || (lang === 'en' ? 'Mystery Blind Box' : '神秘盲盒'))} × ${escapeHtml(order.quantity || 1)}</dd></div>
+              <div><dt>${escapeHtml(tr().amountLabel)}</dt><dd>¥${formatMoney(order.totalAmount || order.price)}</dd></div>
+              <div><dt>${escapeHtml(tr().createdLabel)}</dt><dd>${formatDate(order.createdAt)}</dd></div>
+              <div><dt>${escapeHtml(tr().addressLabel)}</dt><dd>${escapeHtml(order.address || '-')}</dd></div>
+              <div><dt>${escapeHtml(tr().prizeLabel)}</dt><dd>${escapeHtml(blindBoxText(order))}</dd></div>
+            </dl>
+            ${prizes.length ? `<div class="order-prize-media">${prizes.map(prize => `
+              <img src="${escapeHtml(prize.image || '')}" alt="${escapeHtml(prize.name || '奖品')}">
+            `).join('')}</div>` : ''}
+            ${canReceive ? `<button class="btn small" type="button" data-receive="${escapeHtml(order.id)}">${escapeHtml(tr().confirmReceive)}</button>` : ''}
+          </article>
+        `;
+      }).join('');
+    }
+
+    async function loadMyOrders(){
+      const token = localStorage.getItem('authToken');
+      if(!token) return;
+      const res = await fetch('/api/myorders', {headers: authHeaders()});
+      if(!res.ok){
+        ordersCount.textContent = '无法加载订单';
+        if(ordersVisible) myOrders.innerHTML = '<div class="empty-state">无法加载订单</div>';
+        return;
+      }
+      latestOrders = await res.json();
+      renderOrders();
+    }
+
+    async function openBlindBox(orderId){
+      const res = await fetch('/api/orders/' + encodeURIComponent(orderId) + '/open-box', {
+        method: 'POST',
+        headers: authHeaders()
+      });
+      const data = await res.json().catch(() => ({}));
+      if(!res.ok) throw new Error(data.msg || '打开盲盒失败');
+      await loadMyOrders();
+      return Array.isArray(data.blindBoxResult) ? data.blindBoxResult : [];
+    }
+
+    async function receiveOrder(orderId){
+      const res = await fetch('/api/orders/' + encodeURIComponent(orderId) + '/receive', {
+        method: 'POST',
+        headers: authHeaders()
+      });
+      const data = await res.json().catch(() => ({}));
+      if(!res.ok) throw new Error(data.msg || '确认收货失败');
+      activeOrderTab = 'received';
+      syncTabs();
+      await loadMyOrders();
+    }
+
+    function syncTabs(){
+      orderTabBtns.forEach(btn => btn.classList.toggle('active', btn.dataset.orderTab === activeOrderTab));
+    }
+
+    function showResultModal(order){
+      const overlay = document.createElement('div');
+      overlay.className = 'customer-modal';
+      if(order.status === 'accepted'){
+        overlay.innerHTML = `
+          <div class="customer-modal-box case-modal-box" role="dialog" aria-modal="true" aria-label="正在开奖">
+            <h3>正在开奖</h3>
+            <p>订单 ${escapeHtml(order.id)} 已通过，系统正在同步奖品。</p>
+            <div class="case-window">
+              <div class="case-pointer" aria-hidden="true"></div>
+              <div id="caseStrip" class="case-strip"></div>
+            </div>
+            <p id="modalBoxResult" class="case-result">奖品滚动中...</p>
+          </div>
+        `;
+        document.body.appendChild(overlay);
+        playCaseAnimation(order, overlay);
+      }else{
+        overlay.innerHTML = `
+          <div class="customer-modal-box" role="dialog" aria-modal="true" aria-label="支付失败">
+            <h3>支付失败</h3>
+            <p>支付失败，请联系老板强哥15551253727</p>
+            <button id="closeResultBtn" class="btn" type="button">知道了</button>
+          </div>
+        `;
+        document.body.appendChild(overlay);
+        document.getElementById('closeResultBtn').addEventListener('click', () => overlay.remove());
+      }
+    }
+
+    function playCaseAnimation(order, overlay){
+      const result = prizeResult(order);
+      const finalPrize = result[0] || prizePool[2];
+      const strip = document.getElementById('caseStrip');
+      const resultEl = document.getElementById('modalBoxResult');
+      const targetIndex = 26;
+      const items = Array.from({length: 34}, (_, index) => index === targetIndex ? finalPrize : prizePool[index % prizePool.length]);
+      strip.innerHTML = items.map(prize => `
+        <div class="case-tile">
+          ${prize.image ? `<img src="${escapeHtml(prize.image)}" alt="${escapeHtml(prize.name)}">` : ''}
+          <span>${escapeHtml(prize.name)}</span>
+        </div>
+      `).join('');
+      requestAnimationFrame(() => {
+        const tile = strip.querySelector('.case-tile');
+        const windowEl = strip.closest('.case-window');
+        const tileWidth = tile ? tile.getBoundingClientRect().width : 132;
+        const gap = 12;
+        const windowWidth = windowEl ? windowEl.getBoundingClientRect().width : 640;
+        const distance = -(targetIndex * (tileWidth + gap) - (windowWidth / 2 - tileWidth / 2));
+        strip.style.setProperty('--spin-distance', distance + 'px');
+        strip.classList.add('spinning');
+      });
+      strip.addEventListener('animationend', async () => {
+        resultEl.textContent = '你开到了：' + (result.length ? result.map(prize => prize.name).join('、') : '谢谢参与');
+        await markSeen(order.id);
+        activeOrderTab = 'pendingShipment';
+        syncTabs();
+        await loadMyOrders();
+        setTimeout(() => overlay.remove(), 2200);
+      }, {once:true});
+    }
+
+    async function markSeen(orderId){
+      await fetch('/api/orders/' + encodeURIComponent(orderId) + '/seen', {method:'POST'}).catch(() => {});
+    }
+
+    async function pollForNotifications(){
+      if(!localStorage.getItem('authToken')) return;
+      try{
+        const res = await fetch('/api/myorders', {headers: authHeaders()});
+        if(!res.ok) return;
+        latestOrders = await res.json();
+        renderOrders();
+        for(const order of latestOrders){
+          const id = String(order.id || '');
+          const hasPrize = prizeResult(order).length > 0;
+          if(((order.status === 'accepted' && hasPrize) || order.status === 'rejected') && !order.userSeen && !notifiedOrderIds.has(id)){
+            notifiedOrderIds.add(id);
+            showResultModal(order);
+            if(order.status === 'rejected') await markSeen(order.id);
+          }
+        }
+      }catch(err){}
+    }
+
+    loginForm.addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const f = new FormData(loginForm);
+      const body = {phone: f.get('phone'), password: f.get('password')};
+      const res = await fetch('/api/login', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(body)
+      });
+      const data = await res.json();
+      if(!res.ok){
+        loginResult.textContent = data.msg === 'user not found' ? '账号不存在，请先注册。' : (data.msg || '登录失败');
+        return;
+      }
+      saveAuth(data.token, data.name || body.phone);
+      loginResult.textContent = '';
+      ordersVisible = false;
+      notifiedOrderIds.clear();
+      renderAuth();
+    });
+
+    document.getElementById('logoutBtn').addEventListener('click', ()=>{
+      clearAuth();
+      latestOrders = [];
+      ordersVisible = false;
+      notifiedOrderIds.clear();
+      renderAuth();
+    });
+
+    allOrdersBtn.addEventListener('click', async ()=>{
+      ordersVisible = true;
+      ordersPanel.classList.remove('hidden');
+      myOrders.innerHTML = '<div class="empty-state">正在加载订单...</div>';
+      await loadMyOrders();
+    });
+
+    orderTabBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        activeOrderTab = btn.dataset.orderTab;
+        syncTabs();
+        renderOrders();
+      });
+    });
+
+    myOrders.addEventListener('click', async event => {
+      const receiveBtn = event.target.closest('button[data-receive]');
+      if(!receiveBtn) return;
+      receiveBtn.disabled = true;
+      try{
+        await receiveOrder(receiveBtn.dataset.receive);
+      }catch(err){
+        alert(err.message);
+        receiveBtn.disabled = false;
+      }
+    });
+
+    function applyRegisterReturn(){
+      const params = new URLSearchParams(location.search);
+      if(params.get('registered') === '1'){
+        loginHint.textContent = '注册成功，请登录。';
+        const phone = params.get('phone') || '';
+        if(phone) loginPhone.value = phone;
+      }
+      if(params.get('orders') === '1'){
+        ordersVisible = true;
+        activeOrderTab = params.get('tab') || 'pendingShipment';
+        syncTabs();
+      }
+    }
+
+    function renderAuth(){
+      const token = localStorage.getItem('authToken');
+      const name = localStorage.getItem('authName') || '';
+      if(token){
+        authArea.classList.add('hidden');
+        meArea.classList.remove('hidden');
+        meName.textContent = name;
+        ordersPanel.classList.toggle('hidden', !ordersVisible);
+        loadMyOrders();
+      }else{
+        authArea.classList.remove('hidden');
+        meArea.classList.add('hidden');
+        ordersPanel.classList.add('hidden');
+      }
+    }
+
+    applyRegisterReturn();
+    renderAuth();
+    setInterval(pollForNotifications, 5000);
+  </script>
+</body>
+</html>

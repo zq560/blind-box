@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>填写收货信息 - 强哥的地盘</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <h1 id="siteLogo" class="logo">强哥的地盘</h1>
+      <nav><button id="langToggle" class="btn small" type="button" aria-label="切换语言">English</button></nav>
+    </div>
+  </header>
+  <main class="container">
+    <section class="hero">
+      <h2 id="pageTitle">填写收货信息</h2>
+      <p id="pageDesc">请确认数量和收货地址，然后继续支付。</p>
+    </section>
+
+    <section class="product container">
+      <div class="card">
+        <h3 id="orderInfoTitle">订单信息</h3>
+        <p><span id="productLabel">商品：</span><span id="productName">神秘盲盒</span></p>
+        <p><span id="qtyLabel">数量：</span><span id="selectedQty">1</span></p>
+        <p><span id="totalLabel">总价：</span><strong>¥<span id="selectedTotal">5.00</span></strong></p>
+      </div>
+      <div class="card">
+        <h3 id="shippingTitle">收货信息</h3>
+        <form id="checkoutForm">
+          <label id="nameLabel">姓名<input type="text" name="buyerName" required></label>
+          <label id="phoneLabel">手机号<input type="tel" name="phone" required></label>
+          <label id="addressLabel">地址<input type="text" name="address" required></label>
+          <button class="btn" id="submitBtn" type="submit">继续付款</button>
+        </form>
+        <div id="checkoutResult" class="result" aria-live="polite"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer"><div id="footerText" class="container">© 2026 强哥的地盘</div></footer>
+  <script src="checkout.js"></script>
+</body>
+</html>

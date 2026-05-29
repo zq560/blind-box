@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>后台订单管理 - 强哥的地盘</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <h1 class="logo">后台订单管理</h1>
+      <nav class="admin-nav">
+        <a class="btn small" href="/">商品页</a>
+        <button class="btn small" id="refreshBtn" type="button">刷新订单</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container admin-page">
+    <section class="admin-head">
+      <div>
+        <h2>订单审核</h2>
+        <p id="syncState">正在加载订单...</p>
+      </div>
+      <div class="admin-filters" aria-label="订单筛选">
+        <button class="filter-btn active" type="button" data-filter="all">全部</button>
+        <button class="filter-btn" type="button" data-filter="pending">待处理</button>
+        <button class="filter-btn" type="button" data-filter="awaitingDraw">待开奖</button>
+        <button class="filter-btn" type="button" data-filter="pendingShipment">待发货</button>
+        <button class="filter-btn" type="button" data-filter="shipped">待收货</button>
+        <button class="filter-btn" type="button" data-filter="received">已收货</button>
+        <button class="filter-btn" type="button" data-filter="rejected">已拒绝</button>
+      </div>
+    </section>
+
+    <section class="admin-stats" aria-label="订单统计">
+      <div class="admin-stat">
+        <span>待处理</span>
+        <strong id="pendingCount">0</strong>
+      </div>
+      <div class="admin-stat">
+        <span>已同意</span>
+        <strong id="acceptedCount">0</strong>
+      </div>
+      <div class="admin-stat">
+        <span>已拒绝</span>
+        <strong id="rejectedCount">0</strong>
+      </div>
+      <div class="admin-stat">
+        <span>订单金额</span>
+        <strong>¥<span id="totalAmount">0.00</span></strong>
+      </div>
+    </section>
+
+    <section class="admin-orders" id="ordersList" aria-live="polite"></section>
+  </main>
+
+  <div class="admin-toast-stack" id="toastStack" aria-live="assertive"></div>
+
+  <footer class="site-footer"><div class="container">© 2026 强哥的地盘</div></footer>
+
+  <script>
+    const state = {
+      orders: [],
+      filter: 'all',
+      initialized: false,
+      knownIds: new Set()
+    };
+
+    const ordersList = document.getElementById('ordersList');
+    const syncState = document.getElementById('syncState');
+    const toastStack = document.getElementById('toastStack');
+    const refreshBtn = document.getElementById('refreshBtn');
+    const filterBtns = document.querySelectorAll('.filter-btn');
+
+    const statusText = {
+      pending: '待处理',
+      accepted: '已同意',
+      rejected: '已拒绝'
+    };
+
+    const fulfillmentText = {
+      awaitingDraw: '待开奖',
+      pendingShipment: '待发货',
+      shipped: '待收货',
+      received: '已收货',
+      cancelled: '已取消'
+    };
+
+    function escapeHtml(value){
+      return String(value ?? '').replace(/[&<>"']/g, char => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[char]));
+    }
+
+    function getAmount(order){
+      const raw = order.totalAmount ?? order.price ?? order.amount ?? 0;
+      const value = Number(raw);
+      return Number.isFinite(value) ? value : 0;
+    }
+
+    function formatMoney(value){
+      return Number(value || 0).toFixed(2);
+    }
+
+    function formatDate(value){
+      if(!value) return '-';
+      const date = new Date(value);
+      if(Number.isNaN(date.getTime())) return escapeHtml(value);
+      return date.toLocaleString('zh-CN', {hour12: false});
+    }
+
+    function sortOrders(orders){
+      return [...orders].sort((a, b) => {
+        const da = new Date(a.createdAt || 0).getTime();
+        const db = new Date(b.createdAt || 0).getTime();
+        return db - da;
+      });
+    }
+
+    function orderStage(order){
+      if(order.status === 'pending') return 'pending';
+      if(order.status === 'rejected') return 'rejected';
+      if(order.status === 'accepted') return order.fulfillmentStatus || 'pendingShipment';
+      return order.status || 'pending';
+    }
+
+    function matchesFilter(order){
+      if(state.filter === 'all') return true;
+      return orderStage(order) === state.filter;
+    }
+
+    function prizeNames(order){
+      return Array.isArray(order.blindBoxResult) && order.blindBoxResult.length
+        ? order.blindBoxResult.map(prize => prize.name || prize).join('、')
+        : '未开奖';
+    }
+
+    function prizePreview(order){
+      if(!Array.isArray(order.blindBoxResult) || !order.blindBoxResult.length){
+        return '<span class="admin-decision-note">后台同意后，客户支付页会自动开奖</span>';
+      }
+      return `<div class="mini-prizes">${order.blindBoxResult.map(prize => `
+        <div class="mini-prize">
+          ${prize.image ? `<img src="${escapeHtml(prize.image)}" alt="${escapeHtml(prize.name || '奖品')}">` : ''}
+          <span>${escapeHtml(prize.name || prize)}</span>
+        </div>
+      `).join('')}</div>`;
+    }
+
+    function renderStats(){
+      const pending = state.orders.filter(o => o.status === 'pending').length;
+      const accepted = state.orders.filter(o => o.status === 'accepted').length;
+      const rejected = state.orders.filter(o => o.status === 'rejected').length;
+      const amount = state.orders.reduce((sum, order) => sum + getAmount(order), 0);
+      document.getElementById('pendingCount').textContent = pending;
+      document.getElementById('acceptedCount').textContent = accepted;
+      document.getElementById('rejectedCount').textContent = rejected;
+      document.getElementById('totalAmount').textContent = formatMoney(amount);
+    }
+
+    function renderOrders(){
+      renderStats();
+      const filtered = state.filter === 'all'
+        ? state.orders
+        : state.orders.filter(matchesFilter);
+
+      if(!filtered.length){
+        ordersList.innerHTML = '<div class="empty-state">暂无订单</div>';
+        return;
+      }
+
+      ordersList.innerHTML = filtered.map(order => {
+        const status = order.status || 'pending';
+        const stage = orderStage(order);
+        const id = escapeHtml(order.id || '-');
+        const product = escapeHtml(order.product || '神秘盲盒');
+        const quantity = escapeHtml(order.quantity || 1);
+        const amount = formatMoney(getAmount(order));
+        const buyerName = escapeHtml(order.buyerName || '-');
+        const phone = escapeHtml(order.phone || '-');
+        const accountPhone = escapeHtml(order.userPhone || '-');
+        const address = escapeHtml(order.address || '-');
+        const ip = escapeHtml(order.ip || '-');
+        const method = order.method === 'alipay' ? '支付宝' : escapeHtml(order.method || '-');
+        const createdAt = formatDate(order.createdAt);
+        const decisionAt = formatDate(order.decisionAt);
+        const shippedAt = formatDate(order.shippedAt);
+        const receivedAt = formatDate(order.receivedAt);
+        let actions = '';
+        if(status === 'pending'){
+          actions = `<button class="btn small" type="button" data-decision="accept" data-id="${id}">同意</button>
+             <button class="btn small danger" type="button" data-decision="reject" data-id="${id}">拒绝</button>`
+        }else if(stage === 'awaitingDraw'){
+          actions = `<span class="admin-decision-note">等待客户在支付页开奖</span>`;
+        }else if(stage === 'pendingShipment'){
+          actions = `<button class="btn small" type="button" data-ship="${id}">发货</button>
+            <span class="admin-decision-note">处理时间：${decisionAt}</span>`;
+        }else if(stage === 'shipped'){
+          actions = `<span class="admin-decision-note">已发货：${shippedAt}</span>`;
+        }else if(stage === 'received'){
+          actions = `<span class="admin-decision-note">已收货：${receivedAt}</span>`;
+        }else{
+          actions = `<span class="admin-decision-note">处理时间：${decisionAt}</span>`;
+        }
+
+        return `
+          <article class="admin-order status-${escapeHtml(stage)}">
+            <div class="admin-order-top">
+              <div>
+                <strong>订单 ${id}</strong>
+                <span class="status-badge">${fulfillmentText[stage] || statusText[status] || escapeHtml(status)}</span>
+              </div>
+              <strong class="admin-order-amount">¥${amount}</strong>
+            </div>
+            <dl class="order-detail-grid">
+              <div><dt>客户姓名</dt><dd>${buyerName}</dd></div>
+              <div><dt>联系电话</dt><dd>${phone}</dd></div>
+              <div><dt>账户手机号</dt><dd>${accountPhone}</dd></div>
+              <div><dt>商品内容</dt><dd>${product} × ${quantity}</dd></div>
+              <div><dt>支付方式</dt><dd>${method}</dd></div>
+              <div><dt>客户 IP</dt><dd>${ip}</dd></div>
+              <div><dt>下单时间</dt><dd>${createdAt}</dd></div>
+              <div><dt>中奖结果</dt><dd>${escapeHtml(prizeNames(order))}</dd></div>
+            </dl>
+            <div class="admin-prize-preview">${prizePreview(order)}</div>
+            <div class="admin-address">
+              <span>收货地址</span>
+              <p>${address}</p>
+            </div>
+            <div class="admin-order-actions">${actions}</div>
+          </article>
+        `;
+      }).join('');
+    }
+
+    function showToast(title, message){
+      const toast = document.createElement('div');
+      toast.className = 'admin-toast';
+      toast.innerHTML = `
+        <button class="toast-close" type="button" aria-label="关闭">×</button>
+        <strong>${escapeHtml(title)}</strong>
+        <p>${escapeHtml(message)}</p>
+      `;
+      toast.querySelector('.toast-close').addEventListener('click', () => toast.remove());
+      toastStack.appendChild(toast);
+      setTimeout(() => toast.remove(), 9000);
+    }
+
+    function notifyNewOrders(orders){
+      for(const order of orders){
+        showToast('有人下单了', `订单 ${order.id}，金额 ¥${formatMoney(getAmount(order))}`);
+      }
+      if(orders.length){
+        document.title = `有 ${orders.length} 个新订单 - 后台订单管理`;
+      }
+    }
+
+    async function loadOrders({notify = false} = {}){
+      try{
+        const res = await fetch('/api/orders?_=' + Date.now());
+        if(!res.ok) throw new Error('加载失败');
+        const data = await res.json();
+        const orders = sortOrders(Array.isArray(data) ? data : []);
+        if(state.initialized && notify){
+          const fresh = orders.filter(order => {
+            const id = String(order.id || '');
+            return id && !state.knownIds.has(id) && order.status === 'pending';
+          });
+          notifyNewOrders(fresh);
+        }
+        state.orders = orders;
+        state.knownIds = new Set(orders.map(order => String(order.id || '')).filter(Boolean));
+        state.initialized = true;
+        syncState.textContent = '已同步：' + new Date().toLocaleTimeString('zh-CN', {hour12: false});
+        renderOrders();
+      }catch(err){
+        syncState.textContent = '订单加载失败，请确认后端服务已启动。';
+      }
+    }
+
+    async function decideOrder(id, decision){
+      try{
+        const res = await fetch('/api/orders/' + encodeURIComponent(id) + '/decision', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({decision})
+        });
+        const data = await res.json().catch(() => ({}));
+        if(!res.ok) throw new Error(data.msg || `处理失败，HTTP ${res.status}`);
+        showToast('订单已处理', `订单 ${id} 已${decision === 'accept' ? '同意，等待客户开奖' : '拒绝'}`);
+        await loadOrders();
+      }catch(err){
+        showToast('处理失败', (err.message || '请稍后再试') + '。请确认正在使用最新版服务端口。');
+      }
+    }
+
+    async function shipOrder(id){
+      try{
+        const res = await fetch('/api/orders/' + encodeURIComponent(id) + '/ship', {method: 'POST'});
+        const data = await res.json().catch(() => ({}));
+        if(!res.ok) throw new Error(data.msg || `发货失败，HTTP ${res.status}`);
+        showToast('已发货', `订单 ${id} 已进入待收货`);
+        await loadOrders();
+      }catch(err){
+        showToast('发货失败', (err.message || '请稍后再试') + '。只有客户在 payment 页面开奖后，中奖订单才能发货。');
+      }
+    }
+
+    ordersList.addEventListener('click', event => {
+      const btn = event.target.closest('button[data-decision]');
+      const shipBtn = event.target.closest('button[data-ship]');
+      if(btn){
+        btn.disabled = true;
+        decideOrder(btn.dataset.id, btn.dataset.decision);
+        return;
+      }
+      if(shipBtn){
+        shipBtn.disabled = true;
+        shipOrder(shipBtn.dataset.ship);
+      }
+    });
+
+    filterBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        state.filter = btn.dataset.filter;
+        filterBtns.forEach(item => item.classList.toggle('active', item === btn));
+        renderOrders();
+      });
+    });
+
+    refreshBtn.addEventListener('click', () => loadOrders());
+
+    loadOrders();
+    setInterval(() => loadOrders({notify: true}), 2000);
+  </script>
+</body>
+</html>
