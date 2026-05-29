@@ -1,10 +1,11 @@
 {
   "name": "qiangge-shop",
   "version": "1.0.0",
-  "description": "强哥的地盘 - 演示下单和简单后台",
+  "description": "强哥的地盘",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "build": "echo build"
   },
   "dependencies": {
     "express": "^4.18.2"
